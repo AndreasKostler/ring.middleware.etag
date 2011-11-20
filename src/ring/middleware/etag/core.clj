@@ -1,4 +1,4 @@
-(ns ring.middleware.etag
+(ns ring.middleware.etag.core
   (:import [org.apache.commons.codec.digest DigestUtils]))
 
 ;; A bunch of useful hashing/uuid etag generators.

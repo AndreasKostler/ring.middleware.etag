@@ -20,7 +20,7 @@ To summarise these steps:
 ...Let's get started
 
 ** Compojure and Ring
-This tutorial will make use of Compojure [https://github.com/weavejester/compojure] to generate Ring [http://github.com/mmcgrana/ring/wiki] handler functions and it is recommended that you read up on their usage before.
+This tutorial will make use of [[https://github.com/weavejester/compojure][Compojure]] to generate [[http://github.com/mmcgrana/ring/wiki][Ring]] handler functions and it is recommended that you read up on their usage first.
 I will however give a (very) brief introduction to the main components of Compojure and Ring as relevant for this application. 
 If you know Compojure/Ring already you can skip this section.
 *** Handlers
@@ -98,7 +98,7 @@ writing the above route in Compojure is:
 #+end_src
 
 The Compojure route syntax is very powerful and what I presented above barely scratches the surface.
-So, now that we have a black belt (*cough*) in Clojure-Web-Dev-Fu, we can start writing our 
+So, now that we have a black belt (*cough*) in Clojure-Web-Dev-Fu let's move on... 
 
 ** The App
 
@@ -174,6 +174,144 @@ The final step is to selectively re-send the content based on the stored ETag. A
 #+end_src 
 
 This is it. As simple as that. While this example is not particulary sophisticated, ETags can be used for all sorts of interesting applications.
-The full source for this example can be found here [link to github]. 
+The full source for this example can be found [[https://github.com/AndreasKostler/ring.middleware.etag/blob/master/src/examples/src/examples/example1.clj][here]]. 
 
 I encourage you to play with this simple app. Use your browsers debugging facilities to inspect the request/response headers.
+For the full-fledged implementation of with-etag can be found [[https://github.com/AndreasKostler/ring.middleware.etag/blob/master/src/ring/middleware/etag/core.clj][here]].
+
+In the remainder of this document I will show you how to use ETags for client side caching of javascript and caching of query results.
+
+** Client side caching of JS.
+Imagine your application serves javascript to transform the DOM of a third party page. Let's also imagine, that javascript is rather big and fairly static.
+As visitor numbers increase, the operator of the third party page recently started complaining about network traffic and the delays caused by loading your js.
+For applications like this it may makes sense to cache that JS on the client to reduce network traffic. We can easily do that using our ETags middleware.
+
+Firstly, create a web-app representing the third-party page. I will use another powerful element of Clojures web-app stack: [[https://github.com/cgrand/enlive][Enlive]]. 
+Enlive is a selector-based (à la CSS) templating library for Clojure. Again, we're not even going to scratch the surface of its capabilities but it will
+make our life a little easier.
+And enlive template has two parts: 
+
+1 Create a HTML file called template.html in your project-root/srt/etags_examples/template.html
+
+#+begin_src html
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>Static JS and ETags!</title>
+	<script type="text/javascript" src="http://localhost:8888/static.js"></script>
+    </head>
+    <body>
+        <p>ETags rock!</p>
+        <p id="message">Default message.</p>
+    </body>
+</html>
+#+end_src
+
+2 Create a deftemplate:
+
+#+begin_src clojure
+(html/deftemplate index "etags_examples/template.html" [])
+#+end_src
+
+3 And now lets put the third party page together:
+
+#+begin_src clojure
+(defroutes third-party-app 
+  (GET "/" [] (index)))
+
+(defonce server
+  (run-jetty
+   #'third-party-app
+   {:join? false
+    :port 8080}))
+#+end_src clojure
+
+This is not particularly exciting but it serves our purpose. If you point your browser to http://localhost:8080 you should see a fairly bland webpage displaying
+some heading and default content.
+
+Let's move on to the more interesting bits :)
+
+4 Create a file called big-static.js in your project root directory:
+
+#+begin_src js
+document.getElementById('message').innerHTML = 'Transmogrified message.';
+#+end_src
+
+5 Create the web-app serving the big-static JS:
+
+#+begin_src clojure
+(defroutes static-js-server 
+  (GET "/big-static" [] (ring.response/file-response filename)))
+
+(defonce server
+  (run-jetty
+   #'static-js-server
+   {:join? false 
+    :port 8888}))
+#+end_src
+
+
+Once our JS server goes 'online' you should see the message on our third-party page change after hitting reload.
+
+So far there's no caching going on. Everytime we hit the page the third party page
+will request our big-static JS. Using ETags for implementing caching is a trivial exercise:
+
+#+begin_src clojure
+
+;; The response ... add script tag here  
+(defn response [request]
+  {:status 200
+   :headers {}
+   :body (html [:h1 (str "Hello ETags World!")])}))
+
+;; Create a index-route
+(defroutes etags-app 
+  (GET "/" request (response request)))
+#+end_src
+
+So far so good. Now lets add a create-etag function that creates an unique etag for our js
+
+(defn create-etag [request]
+  (let [js (:body request)]
+(defonce server (run-jetty #'myroutes
+  {:join? false
+  :port 8080}))
+
+
+
+
+
+
+
+
+HTML 
+
+Last but not least, Compojure uses a syntax made up of vectors, maps and strings to 
+represent HTML. The `html` function translates this syntax into a 
+string of HTML. 
+Here is an example of the syntax: 
+  [:h1 {:id "title"} "Hello World"] 
+In Compojure, this is referred to as a tag vector, so called because 
+it represents a HTML tag. 
+The first element in the vector is the tag name. This can be a 
+keyword, a string, or a symbol. 
+The second element can optionally be a map. If it is a map, it is 
+considered to represent the attributes of the tag, otherwise it is 
+treated as the tag's content.
+ 
+Any further elements are treated as the content of the tag. A tag's 
+content can be made up of any number of strings or nested tag vectors. 
+
+Compojure also provides a shorthand for defining elements with id or 
+class attributes, based on standard CSS syntax. Any alphanumeric, "-" 
+or "_" after a "#" in the tag name is used as the id attribute: 
+  [:h1#title "Compojure"] 
+Similarly, any alphanumeric, "-" or "_" after a "." is used as the 
+class attribute:
+ 
+  [:div.summary "A Clojure web framework"] 
+
+You can define many classes, but only one id using this syntax. 
+  [:pre#example1.source.clojure 
+    "(some example code)"] 
+
+In my next blog post I will put ETags to use within a simple A/B Testing framework.
