@@ -1,4 +1,6 @@
-* Selective browser caching with ETags in Clojure
+#+TITLE: Selective browser caching with ETags in Clojure
+
+* HTTP ETag
 An ETag is an opaque identifier assigned by a web server to a specific version of a resource found at a URL. 
 If the resource content at that URL ever changes, a new and different ETag is assigned. 
 Thus, ETags provide an efficient way of determining if two versions of a resource are the same or are different. 
@@ -166,10 +168,7 @@ The final step is to selectively re-send the content based on the stored ETag. A
 #+end_src 
 
 This is it. As simple as that. While this example is not particulary sophisticated, ETags can be used for all sorts of interesting applications.
-The full source for this example can be found [[https://github.com/AndreasKostler/ring.middleware.etag/blob/master/src/examples/src/examples/example1.clj][here]]. 
+The full source for this example can be found [[https://github.com/AndreasKostler/ring.middleware.etag/blob/master/examples/src/examples][here]].
 
 I encourage you to play with this simple app. Change the response string and see if it updates in your browser and use your browsers debugging 
 facilities to inspect the request/response headers. For the full-fledged implementation of with-etag can be found [[https://github.com/AndreasKostler/ring.middleware.etag/blob/master/src/ring/middleware/etag/core.clj][here]].
-
-In the remainder of this document I will show you how to use ETags for client side caching of javascript and caching of query results.
-
