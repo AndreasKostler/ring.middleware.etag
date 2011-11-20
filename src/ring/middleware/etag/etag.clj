@@ -1,6 +1,4 @@
-(ns ring.middleware.etag
-  (:use [ring.adapter.jetty]
-        [compojure.core]))
+(ns ring.middleware.etag)
 
 ;; A bunch of useful hashing/uuid etag generators.
 (defn- md5 [s]
