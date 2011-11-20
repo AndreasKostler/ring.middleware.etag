@@ -89,5 +89,5 @@ will request our big-static JS. Using ETags for implementing caching is a trivia
 (def static-js-app
   (etag/with-etag {:etag-generator create-md5-etag}))
 #+end_src
-
+Access the full source for this example [[https://github.com/AndreasKostler/ring.middleware.etag/tree/master/examples/src/examples][here]].
 Too easy, isn't it?
