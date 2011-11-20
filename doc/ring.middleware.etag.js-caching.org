@@ -1,0 +1,93 @@
+#+TITLE: Client Side Caching of JS
+
+Imagine your application serves javascript to transform the DOM of a third party page. Let's also imagine, that javascript is rather big and fairly static.
+As visitor numbers increase, the operator of the third party page recently started complaining about network traffic and the delays caused by loading your js.
+For applications like this it may makes sense to cache that JS on the client to reduce network traffic. We can easily do that using our ETags middleware.
+
+Firstly, create a web-app representing the third-party page. I will use another powerful element of Clojures web-app stack: [[https://github.com/cgrand/enlive][Enlive]]. 
+Enlive is a selector-based (à la CSS) templating library for Clojure. Again, we're not even going to scratch the surface of its capabilities but it will
+make our life a little easier. 
+1 Create a new clojure project with leiningen:
+#+begin_example
+$> lein new js-caching-example
+#+end_example
+
+2 Create a HTML file called template.html in js-caching-example/src/js_caching_example/
+
+#+begin_src html
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>Static JS and ETags!</title>
+    </head>
+    <body>
+        <p>ETags rock!</p>
+        <p id="message">Default message.</p>
+        <script type="text/javascript" src="http://localhost:8888/static"></script>
+    </body>
+</html>
+#+end_src
+
+3 Create a deftemplate core.clj
+
+#+begin_src clojure
+(ns js-caching-example.core
+  (:require [net.cgrand.enlive-html :as html])
+  (:use [ring.adapter.jetty]
+        [compojure.core]
+        [ring.middleware.etag.core :as etag]))
+
+(html/deftemplate index "js_caching_example/template.html" [])
+#+end_src
+
+4 Put the third party page together:
+
+#+begin_src clojure
+(defroutes third-party-app 
+  (GET "/" [] (index)))
+
+(defonce server
+  (run-jetty
+   #'third-party-app
+   {:join? false
+    :port 8080}))
+#+end_src clojure
+
+This is not particularly exciting but it serves our purpose. If you point your browser to http://localhost:8080 you should see a fairly bland webpage displaying
+some heading and default content.
+
+Let's move on to the more interesting bits :)
+
+5 Create a file called big-static.js in your project cache-js-example/src/cache-js-example/ directory:
+
+#+begin_src js
+document.getElementById('message').innerHTML = 'Transmogrified message.';
+#+end_src
+
+6 Create the web-app serving the big-static JS:
+
+#+begin_src clojure
+(defroutes static-js-server 
+  (GET "/static" []
+       (ring.response/file-response "src/js_caching_example/static.js")))
+
+;; Not port 8080!
+(defonce server
+  (run-jetty
+   #'static-js-server
+   {:join? false 
+    :port 8888}))
+#+end_src
+
+Once our JS server goes 'online' you should see the message on our third-party page change after hitting reload on http://localhost:8080.
+
+So far there's no caching going on. Everytime we hit the page the third party page
+will request our big-static JS. Using ETags for implementing caching is a trivial exercise:
+
+#+begin_src clojure
+(def create-md5-etag (etag/create-hashed-etag-fn etag/md5))
+
+(def static-js-app
+  (etag/with-etag {:etag-generator create-md5-etag}))
+#+end_src
+
+Too easy, isn't it?
