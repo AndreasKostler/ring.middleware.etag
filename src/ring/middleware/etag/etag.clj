@@ -12,23 +12,21 @@
   (DigestUtils/sha384Hex s))
 (defn- sha512 [s]
   (DigestUtils/sha512Hex s))
-(defn- uid [_]
+(defn- uid []
   (.toString (java.util.UUID/randomUUID)))
 
 (defmulti calculate-etag class)
 
 (defmethod calculate-etag String [s fun] (fun s))
-(defmethod calculate-etag File
+(defmethod calculate-etag java.io.File
   [f fun]
   (calculate-etag (slurp f) fun))
 
-(defn create-md5-etag [response]
-  (calculate-etag (:body response) md5))
+(defn create-hashed-etag-fn [hash-fn]
+  (fn [response]
+    (calculate-etag (:body response) hash-fn)))
 
-(defn create-sha1-etag [response]
-  (calculate-etag (:body response) sha1))
-
-(defn create-uid-etag [_]
+(defn create-uid [_]
   (uid))
 
 (defn- not-modified-response [etag]
@@ -36,13 +34,13 @@
 
 (defn with-etag
   "Generates an etag header for a response body according to etag-generator and transforms response according to response-fn."
-  [handler {:keys [etag-constructor response-fn]
+  [handler {:keys [etag-generator response-fn]
             :or [etag-generator create-uid
                  response-fn cached-response]}]
   (fn [request]
     (let [old-etag (get-in request [:headers "if-none-match"])
           response (handler request)
-          new-etag (etag-fn response)]
+          new-etag (etag-generator response)]
       (response-fn old-etag new-etag response))))
 
 (defn- cached-response
@@ -53,4 +51,4 @@
     (assoc-in response [:headers "etag"] new-etag)))
 
 (defn with-etag-cache [handler]
-  (with-etag handler :etag-generator create-md5 :response-fn cached-response))
+  (with-etag handler :etag-generator (create-hashed-etag-fn md5) :response-fn cached-response))
