@@ -1,0 +1,179 @@
+* Selective browser caching with ETags in Clojure
+An ETag is an opaque identifier assigned by a web server to a specific version of a resource found at a URL. 
+If the resource content at that URL ever changes, a new and different ETag is assigned. 
+Thus, ETags provide an efficient way of determining if two versions of a resource are the same or are different. 
+A web-application can make use of this functionality to seriously reduce internet traffic by selectively enabling browser caches.
+
+** How it works
+A web server returns a resource along with its corresponding ETag value. A client may then decide to cache the resource, along with its ETag. 
+Later, if the client wants to retrieve the same URL again, it will send its previously saved copy of the ETag along with the request in a "If-None-Match" field.
+On this subsequent request, our server will compare the client's ETag with the ETag for the current version of the resource. If the ETag values match the server will send back a very short response with an HTTP 304 Not Modified status. 
+However, if the ETag values do not match, meaning the resource has likely changed, then a full response including the resource's content is returned.
+
+To summarise these steps:
+- Client requests a page;
+- Server sends back page + ETag;
+- Client renders the page then caches it, along with the ETag;
+- Client requests page again + ETag;
+- Server examines the ETag; if the page hasn't changed since last request it sends back a status 304 response (Not Modified) with an empty body; otherwise it will send the changed content;
+
+...Let's get started
+
+** Compojure and Ring
+This tutorial will make use of Compojure [https://github.com/weavejester/compojure] to generate Ring [http://github.com/mmcgrana/ring/wiki] handler functions and it is recommended that you read up on their usage before.
+I will however give a (very) brief introduction to the main components of Compojure and Ring as relevant for this application. 
+If you know Compojure/Ring already you can skip this section.
+*** Handlers
+HTTP requests and HTTP responses are represneted by clojure maps. A handler is a function that takes a request map as an argument and returns a response map:
+
+#+begin_example
+{ request } -> handler -> { response }
+#+end_example
+
+Here is an example of the a handler being turned into a servlet and 
+passed to an embedded web server: 
+
+#+begin_src clojure
+  (ns example-app 
+    (:use compojure.server.jetty)) 
+
+  (defn hello-world [request] 
+    {:status  200 
+     :headers {} 
+     :body    "Hello World"}) 
+
+  (run-server {:port 8080} 
+    "/*" (servlet hello-world)) 
+#+end_src
+
+*** Middleware
+
+Middleware are functions that take a handler as its first argument, 
+and return a new handler function based on the original:
+
+#+begin_example
+   handler & args --> middleware --> handler 
+#+end_example
+
+An example of a simple middleware function is one that adds a header 
+to the output of a handler: 
+
+#+begin_src clojure
+  (defn with-header [handler header value] 
+    (fn [request] 
+      (let [response (handler request)] 
+        (assoc-in response [:headers header] value))))
+#+end_src 
+  
+To apply this to the existing `hello-world` handler, you can redefine 
+`hello-world` with the middleware wrapper. 
+
+#+begin_src clojure
+  (def hello-world
+    (-> hello-world
+      (with-header "X-Lang" "Clojure") 
+      (with-header "X-Framework" "Compojure")) 
+#+end_src
+
+*** Routes 
+
+A route is a type of handler that returns nil if the request does 
+not match certain criteria. A route can be written as a standard handler:
+
+#+begin_src clojure
+  (defn index-route [request] 
+    (if (and (= (:request-method request) :get) 
+             (= (:uri request) "/")) 
+      {:status  200 
+       :headers {} 
+       :body    "The index page")) 
+#+end_src
+
+But as this is a very common task, Compojure provides macros that 
+remove the need for such verbose boilerplate. The idiomatic way of 
+writing the above route in Compojure is:
+ #+begin_src clojure
+  (def index-route 
+    (GET "/" "The index page")) 
+#+end_src
+
+The Compojure route syntax is very powerful and what I presented above barely scratches the surface.
+So, now that we have a black belt (*cough*) in Clojure-Web-Dev-Fu, we can start writing our 
+
+** The App
+
+First, let's create a basic web application displaying some content:
+
+#+begin_src clojure
+;;Display heading
+(defn response [request]
+  {:status 200
+   :headers {}
+   :body (str "<h1>Hello ETags World!</h1>")})
+  
+;; Create a basic index route 
+(defroutes example1-app 
+  (GET "/" request (response request)))
+  
+;; Run the server, {:join? false} runs the sever in its own thread returning immeadiately
+(defonce server
+  (run-jetty #'example1-app
+             {:join? false
+              :port 8080}))
+#+end_src
+
+If you now point your browser to http://localhost:8080/ you should see a web page displaying the above message.
+
+*** Make it stick - Caching
+The next step is to attach an ETag to the HTTP response. ETags are stored in the HTTP headers. We can easily create
+middleware that adds an ETag to the response header:
+
+#+begin_src clojure
+  (def +global-etag+ "Clojure-etag")
+
+  (defn create-etag [_]
+    +global-etag+)
+
+  (defn with-etag [handler etag-fn] 
+    (fn [request]
+      (let [response (handler request)]
+        (assoc-in response [:headers "etag"] (etag-fn (:body response))))))
+#+end_src
+
+And decorate our response handler with the newly created middleware:
+
+#+begin_src clojure
+ (def response
+   (-> response
+       (with-etag :etag-fn etag-fn)))
+#+end_src
+
+Note that create-etag in this example returns a constant. Typically, create-etag would create an etag based on the request content, e.g. by hashing.
+
+The next time the client sends a request, it will include a "if-non-match" field in its request header. 
+We can display this by slightly altering our response handler:
+
+#+begin_src clojure
+(defn response [request]
+  {:status 200
+   :headers {}
+   :body (str "<h1>Hello ETags World! - ETag is: " (get-in request [:headers "if-none-match"] "Ooops - no etag") "</h1>")})
+#+end_src
+If you refresh your browser after evaluating our new response function, you should see the stored etag displayed next to the welcome message.
+The final step is to selectively re-send the content based on the stored ETag. A simple conditional check in response will do the trick:
+
+#+begin_src clojure
+  (defn with-etag [handler etag-fn] 
+    (fn [request]
+      (let [old-etag (get-in request [:headers "if-none-match"])
+            response (handler request)
+            new-etag (etag-fn response)]
+        (if (= old-etag new-etag)
+          {:status 304 :headers {} :body ""}
+          (assoc-in response [:headers "ETag"] new-etag)))))
+#+end_src 
+
+This is it. As simple as that. While this example is not particulary sophisticated, ETags can be used for all sorts of interesting applications.
+The full source for this example can be found here [link to github]. 
+
+I encourage you to play with this simple app. Use your browsers debugging facilities to inspect the request/response headers.
