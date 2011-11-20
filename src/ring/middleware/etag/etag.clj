@@ -35,8 +35,8 @@
 (defn with-etag
   "Generates an etag header for a response body according to etag-generator and transforms response according to response-fn."
   [handler {:keys [etag-generator response-fn]
-            :or [etag-generator create-uid
-                 response-fn cached-response]}]
+            :or {etag-generator create-uid
+                 response-fn cached-response}}]
   (fn [request]
     (let [old-etag (get-in request [:headers "if-none-match"])
           response (handler request)
@@ -51,4 +51,4 @@
     (assoc-in response [:headers "etag"] new-etag)))
 
 (defn with-etag-cache [handler]
-  (with-etag handler :etag-generator (create-hashed-etag-fn md5) :response-fn cached-response))
+  (with-etag handler {:etag-generator (create-hashed-etag-fn md5) :response-fn cached-response}))
