@@ -1,16 +1,17 @@
-(ns ring.middleware.etag)
+(ns ring.middleware.etag
+  (:import [org.apache.commons.codec.digest DigestUtils]))
 
 ;; A bunch of useful hashing/uuid etag generators.
 (defn- md5 [s]
-  (org.apache.commons.codec.digest.DigestUtils/md5Hex s))
+  (DigestUtils/md5Hex s))
 (defn- sha [s]
-  (org.apache.commons.codec.digest.DigestUtils/shaHex s))
+  (DigestUtils/shaHex s))
 (defn- sha256 [s]
-  (org.apache.commons.codec.digest.DigestUtils/sha256Hex s))
+  (DigestUtils/sha256Hex s))
 (defn- sha384 [s]
-  (org.apache.commons.codec.digest.DigestUtils/sha384Hex s))
+  (DigestUtils/sha384Hex s))
 (defn- sha512 [s]
-  (org.apache.commons.codec.digest.DigestUtils/sha512Hex s))
+  (DigestUtils/sha512Hex s))
 (defn- uid [_]
   (.toString (java.util.UUID/randomUUID)))
 
