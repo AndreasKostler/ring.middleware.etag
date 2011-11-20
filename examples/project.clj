@@ -5,4 +5,4 @@
                  [enlive "1.0.0"]
                  [ring "1.0.0-RC1"]
                  [compojure "0.6.4"]
-                 [ring.middleware.etag "1.0.0"]])
+                 [ring.middleware.etag "1.0.0-SNAPSHOT"]])
