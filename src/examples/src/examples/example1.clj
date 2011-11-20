@@ -1,13 +1,14 @@
 (ns examples.example1
   (:use [ring.adapter.jetty]
         [ring.middleware.etag]
-        [compojure.core]))
+        [compojure.core])
+  (:import [org.apache.commons.codec.digest DigestUtils]))
 
 ;;Display heading
 (defn response [request]
   {:status 200
    :headers {}
-   :body (str "<h1>Hello ETags World! - ETag is: " (get-in request [:headers "if-none-match"] "TEST") "</h1>")})
+   :body (str "<h1>Hello ETags World! - ETag is: " (get-in request [:headers "if-none-match"] "Ooops - No ETag") "</h1>")})
 
 (def +global-etag+ "Clojure-etags")
 
@@ -16,7 +17,7 @@
 
 (def response
   (-> response
-      (with-etag :etag-fn create-etag)))
+      (with-etag {:etag-generator create-etag})))
   
 ;; Create a basic index route 
 (defroutes example1-app 
