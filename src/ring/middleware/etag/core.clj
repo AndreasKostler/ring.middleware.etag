@@ -26,5 +26,5 @@
 
 (defn with-etag-cache [handler hash-fn]
   (with-etag handler
-    {:etag-generator (fn [respone] (hash-fn (:body response)))
+    {:etag-generator (fn [response] (hash-fn (:body response)))
      :response-fn cached-response}))
